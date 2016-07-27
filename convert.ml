@@ -108,6 +108,7 @@ let read_file f =
     with End_of_file -> ()
   in
   loop ();
+  close_in ic;
   Buffer.contents buf
 
 let main () =
