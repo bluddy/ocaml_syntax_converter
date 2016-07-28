@@ -1,9 +1,9 @@
 
 type state =
   | Normal
-  | String
+  | String (* comment level, if in comment. 0 otherwise *)
   | Comment of int (* level *)
-  | QuotedString of string (* delimiter *)
+  | QuotedString of string (* delimiter * comment level *)
 
 let changes = [
   Str.regexp "\\bmatch\\b", "begin match";
@@ -14,10 +14,14 @@ let changes = [
 ]
 
 (* pattern finding any context change characters *)
-let r_context_change = Str.regexp "(\\*\\|{[^|]*|\\|\""
-let r_comment_change = Str.regexp "(\\*\\|\\*)"
-let r_quotes = Str.regexp "\""
-(* to extract the quote in the quoted string *)
+(* we detect: 1. (comment start) 2. {...| 3. 'quote' (to avoid confusion) 4. (exclude \quote) *)
+let r_context_change = Str.regexp "(\\*\\|{[^|]*|\\|'\"'|[^\\]\""
+(* possible changes inside comments:
+ * 1. * ) 2. ( * (deeper comment) 3. (string) *)
+let r_comment_change = Str.regexp "(\\*\\|\\*)|[^\\]\""
+(* detect end of string (exclude quote) *)
+let r_string_change = Str.regexp "[^\\]\""
+(* for extracting the quote in the quoted string *)
 let r_quoted_string = Str.regexp "^{\\([^|]*\\)|"
 
 let convert s =
@@ -83,7 +87,7 @@ let convert s =
 
       | String ->
           (* get position after quote *)
-          let end_pos = Str.search_forward r_quotes s 1 + 1 in
+          let end_pos = Str.search_forward r_string_change s 1 + 1 in
           Buffer.add_substring buf s 0 end_pos;
           loop (Str.string_after s end_pos) Normal
 
