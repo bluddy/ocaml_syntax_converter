@@ -22,9 +22,9 @@ let parse_syntax = function
 
 let param_specs = [
   "--in", Arg.String (fun s -> global_config.input_syntax <- parse_syntax s),
-    "Output syntax: 403 | safe (default)";
+    "Input syntax: 403 (default) | safe";
   "--out", Arg.String (fun s -> global_config.output_syntax <- parse_syntax s),
-    "Input syntax: 403 (default) | safe ";
+    "Output syntax: 403 | safe (default)";
 ]
 
 let usage_msg = Printf.sprintf "%s [options] input_file" Sys.executable_name
