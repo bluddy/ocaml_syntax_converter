@@ -17,6 +17,9 @@
 
 (* Skip tokens to the end of the phrase *)
 
+module Lexer = Lexer_403
+module Parser = Parser_403
+
 let rec skip_phrase lexbuf =
   try
     match Lexer.token lexbuf with
