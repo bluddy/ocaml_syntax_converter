@@ -1,5 +1,3 @@
 <src>: include
 <src/403>: include
 <src/403_safe>: include
-
-true: use_str
