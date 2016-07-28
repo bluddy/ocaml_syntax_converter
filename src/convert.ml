@@ -11,8 +11,8 @@ type config = {
 
 let global_config = {
   input_file = "";
-  input_syntax = Safe_syntax_403;
-  output_syntax = Ocaml_403;
+  input_syntax = Ocaml_403;
+  output_syntax = Safe_syntax_403;
 }
 
 let parse_syntax = function
@@ -21,10 +21,10 @@ let parse_syntax = function
   | _      -> raise @@ Arg.Bad("Invalid syntax choice")
 
 let param_specs = [
-  "-i", Arg.String (fun s -> global_config.input_syntax <- parse_syntax s),
-    "Output syntax: 403 (default) | safe";
-  "-l", Arg.String (fun s -> global_config.output_syntax <- parse_syntax s),
-    "Input syntax: 403 | safe (default)";
+  "--in", Arg.String (fun s -> global_config.input_syntax <- parse_syntax s),
+    "Output syntax: 403 | safe (default)";
+  "--out", Arg.String (fun s -> global_config.output_syntax <- parse_syntax s),
+    "Input syntax: 403 (default) | safe ";
 ]
 
 let usage_msg = Printf.sprintf "%s [options] input_file" Sys.executable_name
@@ -58,7 +58,7 @@ let main () =
     if Filename.check_suffix file ".ml" then
       let ast = parse_impl lexbuf in
       print_impl Format.std_formatter ast
-    else if Filename.check_suffix file ".mli" then 
+    else if Filename.check_suffix file ".mli" then
       let ast = parse_interface lexbuf in
       print_interface Format.std_formatter ast
     else

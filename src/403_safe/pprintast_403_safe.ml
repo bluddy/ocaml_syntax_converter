@@ -125,14 +125,11 @@ let pp = fprintf
 class printer  ()= object(self:'self)
   val pipe = false
   val semi = false
-  val ifthenelse = false
   method under_pipe = {<pipe=true>}
   method under_semi = {<semi=true>}
-  method under_ifthenelse = {<ifthenelse=true>}
   method reset_semi = {<semi=false>}
-  method reset_ifthenelse = {<ifthenelse=false>}
   method reset_pipe = {<pipe=false>}
-  method reset = {<pipe=false;semi=false;ifthenelse=false>}
+  method reset = {<pipe=false;semi=false>}
   method list : 'a . ?sep:space_formatter -> ?first:space_formatter ->
     ?last:space_formatter -> (Format.formatter -> 'a -> unit) ->
     Format.formatter -> 'a list -> unit
@@ -470,25 +467,22 @@ class printer  ()= object(self:'self)
         self#attributes x.pexp_attributes
     end
     else match x.pexp_desc with
-    | Pexp_function _ | Pexp_fun _ | Pexp_match _ | Pexp_try _ | Pexp_sequence _
-      when pipe || semi ->
+    | Pexp_fun _ when pipe || semi ->
         self#paren true self#reset#expression f x
-    | Pexp_ifthenelse _ | Pexp_sequence _ when ifthenelse ->
-        self#paren true self#reset#expression f x
-    | Pexp_let _ | Pexp_letmodule _ | Pexp_open _ when semi ->
+    | Pexp_letmodule _ | Pexp_open _ when semi ->
         self#paren true self#reset#expression f x
     | Pexp_fun (l, e0, p, e) ->
         pp f "@[<2>fun@;%a@;->@;%a@]"
           self#label_exp (l, e0, p)
           self#expression e
     | Pexp_function l ->
-        pp f "@[<hv>function%a@]" self#case_list l
+        pp f "@[<hv>function%a@;end@]" self#case_list l
     | Pexp_match (e, l) ->
-        pp f "@[<hv0>@[<hv0>@[<2>match %a@]@ with@]%a@]" self#reset#expression
+        pp f "@[<hv0>@[<hv0>@[<2>match %a@]@ with@]%a@;end@]" self#reset#expression
            e self#case_list l
 
     | Pexp_try (e, l) ->
-        pp f "@[<0>@[<hv2>try@ %a@]@ @[<0>with%a@]@]"
+        pp f "@[<0>@[<hv2>try@ %a@]@ @[<0>with%a@]@;end@]"
           (* "try@;@[<2>%a@]@\nwith@\n%a"*)
           self#reset#expression e  self#case_list l
     | Pexp_let (rf, l, e) ->
@@ -545,12 +539,11 @@ class printer  ()= object(self:'self)
            self#expression e2;
     | Pexp_ifthenelse (e1, e2, eo) ->
         (* @;@[<2>else@ %a@]@] *)
-        let fmt:(_,_,_)format ="@[<hv0>@[<2>if@ %a@]@;@[<2>then@ %a@]%a@]" in
-        pp f fmt  self#under_ifthenelse#expression e1
-           self#under_ifthenelse#expression e2
+        let fmt:(_,_,_)format ="@[<hv0>@[<2>if@ %a@]@;@[<2>then@ %a@]%a" in (* incomplete box *)
+        pp f fmt  self#expression e1 self#expression e2
           (fun f eo -> match eo with
-          | Some x -> pp f "@;@[<2>else@;%a@]" self#under_semi#expression  x
-          | None -> () (* pp f "()" *)) eo
+          | Some x -> pp f "@]@;@[<2>else@;%a@;end@]" self#expression  x
+          | None -> pp f "@;end@]" (* pp f "()" *)) eo
     | Pexp_sequence _ ->
         let rec sequence_helper acc = function
           | {pexp_desc=Pexp_sequence(e1,e2);_} ->

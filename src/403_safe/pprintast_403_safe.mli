@@ -93,7 +93,6 @@ class printer :
 
     method reset : 'b
     method reset_semi : 'b
-    method reset_ifthenelse : 'b
     method reset_pipe : 'b
 
     method signature :
@@ -126,7 +125,6 @@ class printer :
     method tyvar : Format.formatter -> string -> unit
     method under_pipe : 'b
     method under_semi : 'b
-    method under_ifthenelse : 'b
     method value_description :
       Format.formatter -> Parsetree.value_description -> unit
     method virtual_flag : Format.formatter -> Asttypes.virtual_flag -> unit
