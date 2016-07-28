@@ -539,11 +539,11 @@ class printer  ()= object(self:'self)
            self#expression e2;
     | Pexp_ifthenelse (e1, e2, eo) ->
         (* @;@[<2>else@ %a@]@] *)
-        let fmt:(_,_,_)format ="@[<hv0>@[<2>if@ %a@]@;@[<2>then@ %a@]%a" in (* incomplete box *)
+        let fmt:(_,_,_)format ="@[<hv0>@[<2>if@ %a@]@;@[<2>then@ %a@]%a@;end@]" in (* incomplete box *)
         pp f fmt  self#expression e1 self#expression e2
           (fun f eo -> match eo with
-          | Some x -> pp f "@]@;@[<2>else@;%a@;end@]" self#expression  x
-          | None -> pp f "@;end@]" (* pp f "()" *)) eo
+          | Some x -> pp f "@;@[<2>else@;%a@]" self#under_semi#expression  x
+          | None -> () (* pp f "()" *)) eo
     | Pexp_sequence _ ->
         let rec sequence_helper acc = function
           | {pexp_desc=Pexp_sequence(e1,e2);_} ->
