@@ -69,10 +69,6 @@ let rhs_loc n = {
 let input_name = ref "_none_"
 let input_lexbuf = ref (None : lexbuf option)
 
-(* Terminal info *)
-
-let status = ref Terminfo.Uninitialised
-
 let num_loc_lines = ref 0 (* number of lines already printed after input *)
 
 let print_updating_num_loc_lines ppf f arg =
@@ -90,44 +86,6 @@ let print_updating_num_loc_lines ppf f arg =
   f ppf arg ;
   pp_print_flush ppf ();
   pp_set_formatter_out_functions ppf out_functions
-
-(* Highlight the locations using standout mode. *)
-
-let highlight_terminfo ppf num_lines lb locs =
-  Format.pp_print_flush ppf ();  (* avoid mixing Format and normal output *)
-  (* Char 0 is at offset -lb.lex_abs_pos in lb.lex_buffer. *)
-  let pos0 = -lb.lex_abs_pos in
-  (* Do nothing if the buffer does not contain the whole phrase. *)
-  if pos0 < 0 then raise Exit;
-  (* Count number of lines in phrase *)
-  let lines = ref !num_loc_lines in
-  for i = pos0 to lb.lex_buffer_len - 1 do
-    if Bytes.get lb.lex_buffer i = '\n' then incr lines
-  done;
-  (* If too many lines, give up *)
-  if !lines >= num_lines - 2 then raise Exit;
-  (* Move cursor up that number of lines *)
-  flush stdout; Terminfo.backup !lines;
-  (* Print the input, switching to standout for the location *)
-  let bol = ref false in
-  print_string "# ";
-  for pos = 0 to lb.lex_buffer_len - pos0 - 1 do
-    if !bol then (print_string "  "; bol := false);
-    if List.exists (fun loc -> pos = loc.loc_start.pos_cnum) locs then
-      Terminfo.standout true;
-    if List.exists (fun loc -> pos = loc.loc_end.pos_cnum) locs then
-      Terminfo.standout false;
-    let c = Bytes.get lb.lex_buffer (pos + pos0) in
-    print_char c;
-    bol := (c = '\n')
-  done;
-  (* Make sure standout mode is over *)
-  Terminfo.standout false;
-  (* Position cursor back to original location *)
-  Terminfo.resume !num_loc_lines;
-  flush stdout
-
-(* Highlight the location by printing it again. *)
 
 let highlight_dumb ppf lb loc =
   (* Char 0 is at offset -lb.lex_abs_pos in lb.lex_buffer. *)
@@ -193,31 +151,6 @@ let highlight_dumb ppf lb loc =
         Format.pp_print_char ppf c
   done
 
-(* Highlight the location using one of the supported modes. *)
-
-let rec highlight_locations ppf locs =
-  match !status with
-    Terminfo.Uninitialised ->
-      status := Terminfo.setup stdout; highlight_locations ppf locs
-  | Terminfo.Bad_term ->
-      begin match !input_lexbuf with
-        None -> false
-      | Some lb ->
-          let norepeat =
-            try Sys.getenv "TERM" = "norepeat" with Not_found -> false in
-          if norepeat then false else
-            let loc1 = List.hd locs in
-            try highlight_dumb ppf lb loc1; true
-            with Exit -> false
-      end
-  | Terminfo.Good_term num_lines ->
-      begin match !input_lexbuf with
-        None -> false
-      | Some lb ->
-          try highlight_terminfo ppf num_lines lb locs; true
-          with Exit -> false
-      end
-
 (* Print the location in some way or another *)
 
 open Format
@@ -253,15 +186,10 @@ let get_pos_info pos =
   (pos.pos_fname, pos.pos_lnum, pos.pos_cnum - pos.pos_bol)
 ;;
 
-let setup_colors () =
-  Misc.Color.setup !Clflags.color
-
 let print_loc ppf loc =
-  setup_colors ();
   let (file, line, startchar) = get_pos_info loc.loc_start in
   let endchar = loc.loc_end.pos_cnum - loc.loc_start.pos_cnum + startchar in
   if file = "//toplevel//" then begin
-    if highlight_locations ppf [loc] then () else
       fprintf ppf "Characters %i-%i"
               loc.loc_start.pos_cnum loc.loc_end.pos_cnum
   end else begin
@@ -273,30 +201,22 @@ let print_loc ppf loc =
 ;;
 
 let print ppf loc =
-  setup_colors ();
-  if loc.loc_start.pos_fname = "//toplevel//"
-  && highlight_locations ppf [loc] then ()
-  else fprintf ppf "@{<loc>%a@}%s@." print_loc loc msg_colon
+  fprintf ppf "@{<loc>%a@}%s@." print_loc loc msg_colon
 ;;
 
 let error_prefix = "Error"
 let warning_prefix = "Warning"
 
 let print_error_prefix ppf () =
-  setup_colors ();
   fprintf ppf "@{<error>%s@}:" error_prefix;
   ()
 ;;
 
 let print_compact ppf loc =
-  if loc.loc_start.pos_fname = "//toplevel//"
-  && highlight_locations ppf [loc] then ()
-  else begin
-    let (file, line, startchar) = get_pos_info loc.loc_start in
-    let endchar = loc.loc_end.pos_cnum - loc.loc_start.pos_cnum + startchar in
-    fprintf ppf "%a:%i" print_filename file line;
-    if startchar >= 0 then fprintf ppf ",%i--%i" startchar endchar
-  end
+  let (file, line, startchar) = get_pos_info loc.loc_start in
+  let endchar = loc.loc_end.pos_cnum - loc.loc_start.pos_cnum + startchar in
+  fprintf ppf "%a:%i" print_filename file line;
+  if startchar >= 0 then fprintf ppf ",%i--%i" startchar endchar
 ;;
 
 let print_error ppf loc =
@@ -308,7 +228,6 @@ let print_error_cur_file ppf () = print_error ppf (in_file !input_name);;
 
 let default_warning_printer loc ppf w =
   if Warnings.is_active w then begin
-    setup_colors ();
     print ppf loc;
     fprintf ppf "@{<warning>%s@} %a@." warning_prefix Warnings.print w
   end
@@ -389,13 +308,6 @@ let error_of_exn exn =
 
 let rec default_error_reporter ppf ({loc; msg; sub; if_highlight} as err) =
   let highlighted =
-    if if_highlight <> "" && loc.loc_start.pos_fname = "//toplevel//" then
-      let rec collect_locs locs {loc; sub; if_highlight; _} =
-        List.fold_left collect_locs (loc :: locs) sub
-      in
-      let locs = collect_locs [] err in
-      highlight_locations ppf locs
-    else
       false
   in
   if highlighted then

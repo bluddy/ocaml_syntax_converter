@@ -69,7 +69,6 @@ val warning_printer : (t -> formatter -> Warnings.t -> unit) ref
 val default_warning_printer : t -> formatter -> Warnings.t -> unit
 (** Original warning printer for use in hooks. *)
 
-val highlight_locations: formatter -> t list -> bool
 
 type 'a loc = {
   txt : 'a;
